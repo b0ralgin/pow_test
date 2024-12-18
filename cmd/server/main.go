@@ -2,36 +2,55 @@ package main
 
 import (
 	"fmt"
-	"os"
+	"github.com/b0ralgin/pow_test/domain"
+	"github.com/b0ralgin/pow_test/gates/bow"
+	"github.com/b0ralgin/pow_test/gates/pow"
+	"go.uber.org/zap"
 	"net"
-	"bufio"
+	"os"
 )
 
-
-func handleConnection(conn net.Conn) {
-	defer conn.Close()
-
+// реализуем протокол Challenge-Response
+func handleConnection(conn net.Conn, pow domain.ProofOfWorker, book domain.Wisdomer, logger *zap.Logger) {
 	// Читаем данные от клиента
-	reader := bufio.NewReader(conn)
-	for {
-		message, err := reader.ReadString('\n')
-		if err != nil {
-			fmt.Println("Ошибка чтения данных:", err)
-			return
+	defer conn.Close()
+	defer func() {
+		if e := recover(); e != nil {
+			logger.DPanic("panic", zap.Any("description", e))
 		}
-		fmt.Print("Получено сообщение от клиента:", message)
-
-		// Отправляем ответ клиенту
-		response := "Сервер получил: " + message
-		_, err = conn.Write([]byte(response))
-		if err != nil {
-			fmt.Println("Ошибка при отправке данных:", err)
-			return
-		}
+	}()
+	puzzle := pow.Create()
+	if _, err := conn.Write(puzzle); err != nil {
+		logger.Error("failed to send puzzle", zap.Error(err))
+		return
+	}
+	// ждем решения
+	//TODO: добавить таймаут
+	buf := make([]byte, 1024)
+	if _, err := conn.Read(buf); err != nil {
+		logger.Error("failed to read response", zap.Error(err))
+		return
+	}
+	if ok := pow.Verify(puzzle, buf); !ok {
+		logger.Error("failed to verify connection")
+		return
+	}
+	qoute, err := book.GetQoute()
+	if err != nil {
+		logger.Error("failed to get qoute")
+		return
+	}
+	if _, err := conn.Write([]byte(qoute)); err != nil {
+		logger.Error("failed to send qoute")
+		return
 	}
 }
 
 func main() {
+	logger, err := zap.NewDevelopment()
+	if err != nil {
+		panic(err)
+	}
 	// Запускаем TCP сервер на порту 8080
 	listener, err := net.Listen("tcp", ":8080")
 	if err != nil {
@@ -40,7 +59,12 @@ func main() {
 	}
 	defer listener.Close()
 	fmt.Println("Server is started")
-
+	worker := pow.HashCach{
+		Size:       8,
+		Difficulty: 8,
+		Algo:       domain.SHA256,
+	}
+	book := bow.SimpleBook{}
 	for {
 		// Принимаем входящее соединение
 		conn, err := listener.Accept()
@@ -52,6 +76,6 @@ func main() {
 		fmt.Println("New client connected", conn.RemoteAddr())
 
 		// Обрабатываем клиента в отдельной горутине
-		go handleConnection(conn)
+		go handleConnection(conn, worker, book, logger)
 	}
 }
