@@ -1,7 +1,8 @@
 package pow
 
 import (
-    "github.com/b0ralgin/pow_test/domain"
+	"fmt"
+	"github.com/b0ralgin/pow_test/domain"
     "github.com/stretchr/testify/require"
 	"testing"
 )
@@ -30,4 +31,19 @@ func TestHashCach_Verify(t *testing.T) {
 		Algo:        domain.SHA256,
 	}
 	require.True(t, leading6h.Verify([]byte{79,109,97,114,57,56,54,57}, []byte{50, 52}))
+}
+
+
+func TestIntegration(t *testing.T) {
+	hash := HashCach{
+		Size:       8,
+		Difficulty: 8,
+		Algo:        domain.SHA256,
+		MaxAttempts: 10000,
+	}
+	prefix := hash.Create()
+	fmt.Println(prefix)
+	nonce, err  := hash.Challenge(prefix)
+	require.NoError(t, err)
+	hash.Verify(prefix, nonce)
 }

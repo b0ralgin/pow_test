@@ -19,8 +19,8 @@ func handleConnection(conn net.Conn, pow domain.ProofOfWorker, book domain.Wisdo
 			logger.DPanic("panic", zap.Any("description", e))
 		}
 	}()
-	puzzle := pow.Create()
-	if _, err := conn.Write(puzzle); err != nil {
+	prefix := pow.Create()
+	if _, err := conn.Write(prefix); err != nil {
 		logger.Error("failed to send puzzle", zap.Error(err))
 		return
 	}
@@ -31,7 +31,8 @@ func handleConnection(conn net.Conn, pow domain.ProofOfWorker, book domain.Wisdo
 		logger.Error("failed to read response", zap.Error(err))
 		return
 	}
-	if ok := pow.Verify(puzzle, buf); !ok {
+	fmt.Println(buf)
+	if ok := pow.Verify(prefix, buf); !ok {
 		logger.Error("failed to verify connection")
 		return
 	}
@@ -64,7 +65,7 @@ func main() {
 		Difficulty: 8,
 		Algo:       domain.SHA256,
 	}
-	book := bow.SimpleBook{}
+	book := bow.NewSimpleBook()
 	for {
 		// Принимаем входящее соединение
 		conn, err := listener.Accept()

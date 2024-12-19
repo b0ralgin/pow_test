@@ -24,9 +24,9 @@ func (h HashCach) Create() []byte {
 }
 
 func (h HashCach) Challenge(prefix []byte) ([]byte, error) {
-	nonceBytes := make([]byte, 8)
-	plen := len(prefix) - 1
-	algo := domain.Algoritm(prefix[0])
+	nonceBytes := make([]byte,h.Size)
+	plen := len(prefix)
+	algo := h.Algo
 	puzzle := append(append(prefix, nonceBytes...)) // alloc memory
 
 	for range h.MaxAttempts {
@@ -60,7 +60,7 @@ func (h HashCach) checkZeroes(d []byte) bool {
 }
 
 func (h HashCach) Verify(prefix, nonce []byte) bool {
-	puzzle := append(prefix, nonce...)
+	puzzle := append(prefix, nonce[:h.Size]...)
 	hash := h.Algo.Hash(puzzle)
 	return h.checkZeroes(hash)
 }
