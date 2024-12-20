@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/b0ralgin/pow_test/domain"
 	"github.com/b0ralgin/pow_test/gates/bow"
+	"github.com/b0ralgin/pow_test/gates/config"
 	"github.com/b0ralgin/pow_test/gates/pow"
 	"go.uber.org/zap"
 	"net"
@@ -52,29 +53,34 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	// Запускаем TCP сервер на порту 8080
-	listener, err := net.Listen("tcp", ":8080")
+	cfg, err := config.LoadConfig()
 	if err != nil {
-		fmt.Println("Error in launching server", err)
+		logger.Error("failed to load cfg", zap.Error(err))
+		os.Exit(1)
+	}
+	// Запускаем TCP сервер на порту 8080
+	listener, err := net.Listen("tcp", cfg.Port)
+	if err != nil {
+		logger.Fatal("Error in launching server", zap.Error(err))
 		os.Exit(1)
 	}
 	defer listener.Close()
+
 	fmt.Println("Server is started")
 	worker := pow.HashCach{
-		Size:       8,
-		Difficulty: 8,
-		Algo:       domain.SHA256,
+		Size:       cfg.Size,
+		Difficulty: cfg.Difficulty,
+		Algo:       cfg.Algo,
 	}
 	book := bow.NewSimpleBook()
 	for {
 		// Принимаем входящее соединение
 		conn, err := listener.Accept()
 		if err != nil {
-			fmt.Println("Failed to create new connection", err)
+			logger.Error("Failed to create new connection", zap.Error(err))
 			continue
 		}
-
-		fmt.Println("New client connected", conn.RemoteAddr())
+		logger.Info("new client connected", zap.String("ip", conn.RemoteAddr().String()))
 
 		// Обрабатываем клиента в отдельной горутине
 		go handleConnection(conn, worker, book, logger)
